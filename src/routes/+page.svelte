@@ -38,14 +38,16 @@
                 float green = initGreen;
                 float blue = initBlue;
 
-                if(useRed){
-                    red += (1.0 - initRed) * (maxZ - vZ) / (maxZ - minZ);
-                }
-                if(useGreen){
-                    red += (1.0 - initGreen) * (maxZ - vZ) / (maxZ - minZ);
-                }
-                if(useBlue){
-                    red += (1.0 - initBlue) * (maxZ - vZ) / (maxZ - minZ);
+                float interval = (maxZ - vZ) / (maxZ - minZ);
+
+                if (interval < 0.5) {
+                    red = 1.0 - 2.0 * interval; // Red fades out
+                    green = 2.0 * interval;     // Green fades in
+                    blue = 0.0;                 // Blue stays at 0
+                } else {
+                    red = 0.0;                  // Red stays at 0
+                    green = 2.0 * (1.0 - interval); // Green fades out
+                    blue = 2.0 * (interval - 0.5);  // Blue fades in
                 }
 
                 gl_FragColor = vec4(red, green, blue, 1.0);
@@ -53,12 +55,12 @@
                 // if(vZ > 10.0 || vZ < -10.0){
                 //     gl_FragColor = vec4(1.0, 1.0, 1.0, 0.0);
                 // }
+                if(maxZ == minZ){
+                    gl_FragColor = vec4(1.0, 0.0, 1.0, 1.0);
+                }
             }
             `;
 
-        let all_formula: string[] = [
-            "\\sin(x) * \\cos(y)",
-        ];
         let formula = "";
         const size = 20;
         const splitter = 64;
@@ -69,23 +71,40 @@
         var docNotes = null
         let inputFormula = "";
 
-        function addDiv(str:string){
+        function addDiv(str: string) {
             let parentDiv = document.getElementById("notes");
             const newDiv = document.createElement('div');
-            newDiv.className = 'child-div';  // Add class name
-            newDiv.textContent = str;  // Add text content
-            parentDiv?.appendChild(newDiv);  // Append the child div to the parent div
+            newDiv.className = 'child-div'; 
+            newDiv.textContent = str;  
+
+            const button = document.createElement('button');
+            button.textContent = 'Delete';
+            var mmesh = createGraph();
+
+            button.onclick = function () {
+                console.log("Deleting Mesh");
+                // If the mesh is part of the scene, remove it from the scene
+                scene.remove(mmesh);
+                mmesh.geometry.dispose()
+                mmesh.material.dispose();
+
+                // Delete the mesh from the map
+                console.log(`Mesh with key '${str}' has been removed.`);
+
+                parentDiv?.removeChild(newDiv);  
+                
+            };
+
+            newDiv.appendChild(button);  
+            parentDiv?.appendChild(newDiv);  
         }
 
         function onClickButton(){
             if (inputFormula.trim() !== "") {
-                all_formula.push(inputFormula);
                 formula = inputFormula;
                 addDiv(formula);
-                createGraph();
                 inputFormula = "";  // Clear the input after adding
             }
-            all_formula.push(inputFormula);
         }
 
         function createGraph() {
@@ -128,7 +147,9 @@
             mesh.castShadow = true;  // This mesh casts shadows
             mesh.receiveShadow = true; 
 
+            mesh.name = formula;
             scene.add(mesh);
+            
             // scene.add(mesh2);
 
             // Modify vertex positions
@@ -155,6 +176,8 @@
             positions.needsUpdate = true;
 
             console.log("Finish Mesh ...");
+
+            return mesh;
         }
 
         onMount(() => {
@@ -199,12 +222,10 @@
 
             addGridHelper();
 
-            for (let str of all_formula) {
-                formula = str;
+                formula = "\\sin(x) * \\cos(y)";
                 console.log(formula);
                 addDiv(formula);
-                createGraph();
-            }
+            
             
 
             // const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
@@ -240,7 +261,7 @@
         .notes{
             top:0;
             left: 0;
-            width: 100px;
+            width: 200px;
             height: 100vh;
             position: absolute;
             z-index: 1;
@@ -250,7 +271,7 @@
             background-color: black;
             color: white;
             margin:10px;
-            width: 100px;
+            width: 200px;
             height: 50px;
         }
     </style>
