@@ -50,23 +50,117 @@
 
                 gl_FragColor = vec4(red, green, blue, 1.0);
 
-                if(vZ > 10.0 || vZ < -10.0){
-                    gl_FragColor = vec4(1.0, 1.0, 1.0, 0.0);
-                }
+                // if(vZ > 10.0 || vZ < -10.0){
+                //     gl_FragColor = vec4(1.0, 1.0, 1.0, 0.0);
+                // }
             }
             `;
 
-        onMount(() => {
-            let all_formula: string[] = [
-                "\\sin(x) * \\cos(y)",
-                "2 * x + y",
-                "50 + 7x - 3y"
-            ];
-            let formula = "";
-            const size = 20;
-            const splitter = 64;
+        let all_formula: string[] = [
+            "\\sin(x) * \\cos(y)",
+        ];
+        let formula = "";
+        const size = 20;
+        const splitter = 64;
 
-            const ce = new ComputeEngine();
+        const scene = new THREE.Scene();
+        const ce = new ComputeEngine();
+        
+        var docNotes = null
+        let inputFormula = "";
+
+        function addDiv(str:string){
+            let parentDiv = document.getElementById("notes");
+            const newDiv = document.createElement('div');
+            newDiv.className = 'child-div';  // Add class name
+            newDiv.textContent = str;  // Add text content
+            parentDiv?.appendChild(newDiv);  // Append the child div to the parent div
+        }
+
+        function onClickButton(){
+            if (inputFormula.trim() !== "") {
+                all_formula.push(inputFormula);
+                formula = inputFormula;
+                addDiv(formula);
+                createGraph();
+                inputFormula = "";  // Clear the input after adding
+            }
+            all_formula.push(inputFormula);
+        }
+
+        function createGraph() {
+
+            console.log("Creating Mesh ...");
+
+            const geometry = new THREE.PlaneGeometry(size, size, splitter, splitter);
+            const materialGrid = new THREE.MeshBasicMaterial({
+                color: 0x000000, // Hex code for black
+                wireframe: true,
+                opacity: 0.05,
+                transparent: true 
+            });                
+
+            var useRed:boolean = Math.random() < 0.5;
+            var useGreen:boolean = Math.random() < 0.5;
+            var useBlue:boolean = (useRed || useGreen) ? (Math.random() < 0.5) : true;
+
+            var maxZ = -Infinity;
+            var minZ = Infinity;
+
+            const material = new THREE.ShaderMaterial({
+                vertexShader,
+                fragmentShader,
+                side: THREE.DoubleSide,
+                transparent: true,
+                uniforms: {
+                    maxZ: { value: 0 },
+                    minZ: { value: 0 },
+                    useRed: { value: useRed},
+                    initRed: { value: useRed ? 0.2 : 0.8 },
+                    useGreen: { value: useGreen },
+                    initGreen: { value: useRed ? 0.2 : 0.8 },
+                    useBlue: { value: useBlue },
+                    initBlue: { value: useRed ? 0.2 : 0.8 },
+                },
+            });
+            const mesh = new THREE.Mesh(geometry, material);
+            const mesh2 = new THREE.Mesh(geometry, materialGrid);
+            mesh.castShadow = true;  // This mesh casts shadows
+            mesh.receiveShadow = true; 
+
+            scene.add(mesh);
+            // scene.add(mesh2);
+
+            // Modify vertex positions
+            const positions = geometry.attributes.position;
+            const vertexCount = positions.count;
+            for (let i = 0; i < vertexCount; i++) {
+                const x = positions.getX(i);
+                const y = positions.getY(i);
+                ce.assign('x', x );
+                ce.assign('y', y );
+                const z = Number(ce.parse(formula).N().value);
+                positions.setZ(i, z);
+                if (z > maxZ) {
+                    maxZ = z;
+                }
+                if(z < minZ){
+                    minZ = z;
+                }
+            }
+            // geometry.scale(1.0, 1.0, size/(maxZ * 2))
+
+            material.uniforms.maxZ.value =  maxZ;
+            material.uniforms.minZ.value =  minZ;
+            positions.needsUpdate = true;
+
+            console.log("Finish Mesh ...");
+        }
+
+        onMount(() => {
+
+            docNotes = document.getElementById("notes");
+
             const container = document.getElementById('container');
             const renderer = new THREE.WebGLRenderer();
             renderer.setSize(window.innerWidth, window.innerHeight);
@@ -78,7 +172,6 @@
                 container.appendChild(renderer.domElement);
             }
 
-            const scene = new THREE.Scene();
             const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
             camera.position.set(15.0, 2.0, 5.0);
             camera.up.set(0, 0, 1);
@@ -94,74 +187,7 @@
             scene.add(axesHelper);
 
             // Function to create graph
-            function createGraph() {
-
-                console.log("Creating Mesh ...");
-
-                const geometry = new THREE.PlaneGeometry(size, size, splitter, splitter);
-                const materialGrid = new THREE.MeshBasicMaterial({
-                    color: 0x000000, // Hex code for black
-                    wireframe: true,
-                    opacity: 0.05,
-                    transparent: true 
-                });                
-                
-                var useRed:boolean = Math.random() < 0.5;
-                var useGreen:boolean = Math.random() < 0.5;
-                var useBlue:boolean = (useRed || useGreen) ? (Math.random() < 0.5) : true;
-
-                var maxZ = -Infinity;
-                var minZ = Infinity;
-
-                const material = new THREE.ShaderMaterial({
-                    vertexShader,
-                    fragmentShader,
-                    side: THREE.DoubleSide,
-                    transparent: true,
-                    uniforms: {
-                        maxZ: { value: 0 },
-                        minZ: { value: 0 },
-                        useRed: { value: useRed},
-                        initRed: { value: useRed ? 0.2 : 0.8 },
-                        useGreen: { value: useGreen },
-                        initGreen: { value: useRed ? 0.2 : 0.8 },
-                        useBlue: { value: useBlue },
-                        initBlue: { value: useRed ? 0.2 : 0.8 },
-                    },
-                });
-                const mesh = new THREE.Mesh(geometry, material);
-                const mesh2 = new THREE.Mesh(geometry, materialGrid);
-                mesh.castShadow = true;  // This mesh casts shadows
-                mesh.receiveShadow = true; 
-
-                scene.add(mesh);
-                // scene.add(mesh2);
-
-                // Modify vertex positions
-                const positions = geometry.attributes.position;
-                const vertexCount = positions.count;
-                for (let i = 0; i < vertexCount; i++) {
-                    const x = positions.getX(i);
-                    const y = positions.getY(i);
-                    ce.assign('x', x );
-                    ce.assign('y', y );
-                    const z = Number(ce.parse(formula).N().value);
-                    positions.setZ(i, z);
-                    if (z > maxZ) {
-                        maxZ = z;
-                    }
-                    if(z < minZ){
-                        minZ = z;
-                    }
-                }
-                // geometry.scale(1.0, 1.0, size/(maxZ * 2))
-
-                material.uniforms.maxZ.value =  maxZ;
-                material.uniforms.minZ.value =  minZ;
-                positions.needsUpdate = true;
-
-                console.log("Finish Mesh ...");
-            }
+            
 
             function addGridHelper() {
                 const divisions = size;  // One line per unit
@@ -175,7 +201,8 @@
 
             for (let str of all_formula) {
                 formula = str;
-                console.log(formula)
+                console.log(formula);
+                addDiv(formula);
                 createGraph();
             }
             
@@ -209,6 +236,23 @@
             margin: 0;
             height: 100%;
         }
+
+        .notes{
+            top:0;
+            left: 0;
+            width: 100px;
+            height: 100vh;
+            position: absolute;
+            z-index: 1;
+            background-color: lightgray;
+        }
+        .card{
+            background-color: black;
+            color: white;
+            margin:10px;
+            width: 100px;
+            height: 50px;
+        }
     </style>
 
     <svelte:head>
@@ -227,3 +271,10 @@
     </svelte:head>
 
     <div id="container" style="width: 100%; height: 100vh;"></div>
+    <div id="notes" class="notes">
+        <div>
+            <input type="text" id="fname" name="fname" bind:value={inputFormula} ><br><br>
+            <button on:click={() => {onClickButton();}}>Submit</button>
+        </div>
+        
+    </div>
